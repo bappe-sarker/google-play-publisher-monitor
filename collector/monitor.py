@@ -1,11 +1,14 @@
 
-"""Google Play Publisher Monitor collector."""
+"""Google Play Publisher Monitor collector.
+
+Collects app metadata, detects version changes, and maintains JSON history.
+"""
 
 from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -23,7 +26,6 @@ DATA_DIR = ROOT / "data"
 CURRENT_FILE = DATA_DIR / "current.json"
 HISTORY_FILE = DATA_DIR / "history.json"
 
-# Corrected publisher URL: no trailing punctuation after PLC.
 PUBLISHER_URL = (
     "https://play.google.com/store/apps/developer"
     "?id=City+Bank+PLC."
@@ -47,7 +49,7 @@ USER_AGENT = (
 # ---------------------------------------------------------------------
 
 def _request(url: str) -> requests.Response:
-    """Fetch a URL and raise for unsuccessful HTTP responses."""
+    """Fetch a URL and raise an error for unsuccessful responses."""
     response = requests.get(
         url,
         headers={"User-Agent": USER_AGENT},
@@ -58,7 +60,7 @@ def _request(url: str) -> requests.Response:
 
 
 # ---------------------------------------------------------------------
-# Google Play HTML parsing
+# Publisher app-link parser
 # ---------------------------------------------------------------------
 
 class AppLinkParser(HTMLParser):
@@ -95,7 +97,7 @@ class AppLinkParser(HTMLParser):
 
 
 def parse_publisher_app_links(html: str) -> set[str]:
-    """Return unique package IDs from Google Play app links."""
+    """Return package IDs discovered in page HTML."""
     parser = AppLinkParser()
     parser.feed(html)
     parser.close()
@@ -103,18 +105,16 @@ def parse_publisher_app_links(html: str) -> set[str]:
 
 
 def discover_package_ids() -> tuple[set[str], str]:
-    """Discover package IDs from the publisher page or search results.
+    """Discover packages from the publisher page or search results.
 
-    Search-based discovery is best-effort and may not find every app.
+    Search-based discovery is best-effort and might not return every app.
     """
     errors: list[str] = []
 
-    sources = (
+    for url, source in (
         (PUBLISHER_URL, "publisher_page"),
         (SEARCH_URL, "google_play_search"),
-    )
-
-    for url, source in sources:
+    ):
         try:
             response = _request(url)
             package_ids = parse_publisher_app_links(response.text)
@@ -135,14 +135,14 @@ def discover_package_ids() -> tuple[set[str], str]:
 
 
 # ---------------------------------------------------------------------
-# Version parsing
+# HTML metadata parsers (fallback)
 # ---------------------------------------------------------------------
 
 def _extract_json_values(
     html: str,
     keys: tuple[str, ...],
 ) -> list[str]:
-    """Extract quoted string values associated with candidate JSON keys."""
+    """Extract quoted string values associated with JSON keys."""
     values: list[str] = []
 
     for key in keys:
@@ -169,7 +169,7 @@ def _extract_json_values(
 def parse_version_from_software_version_json(
     html: str,
 ) -> str | None:
-    """Extract a version from a softwareVersion field."""
+    """Extract a softwareVersion value."""
     for value in _extract_json_values(html, ("softwareVersion",)):
         if value.lower() not in {"null", "unknown", "n/a"}:
             return value
@@ -178,7 +178,7 @@ def parse_version_from_software_version_json(
 
 
 def parse_version_from_version_json(html: str) -> str | None:
-    """Extract a version from a version field."""
+    """Extract a version value from embedded JSON."""
     for value in _extract_json_values(html, ("version",)):
         if (
             value.lower() not in {"null", "unknown", "n/a"}
@@ -190,7 +190,7 @@ def parse_version_from_version_json(html: str) -> str | None:
 
 
 def parse_version_from_itemprop(html: str) -> str | None:
-    """Extract softwareVersion from an HTML itemprop."""
+    """Extract softwareVersion from HTML metadata."""
     patterns = (
         r'<[^>]*itemprop=["\']softwareVersion["\'][^>]*'
         r'content=["\']([^"\']+)["\'][^>]*>',
@@ -213,7 +213,7 @@ def parse_version_from_itemprop(html: str) -> str | None:
 
 
 def parse_version_from_html(html: str) -> str | None:
-    """Return the first detected version, or None."""
+    """Return the first version found in supported HTML patterns."""
     return (
         parse_version_from_software_version_json(html)
         or parse_version_from_version_json(html)
@@ -221,12 +221,8 @@ def parse_version_from_html(html: str) -> str | None:
     )
 
 
-# ---------------------------------------------------------------------
-# Date and app-name parsing
-# ---------------------------------------------------------------------
-
 def parse_updated_date_from_html(html: str) -> str | None:
-    """Extract updated date and normalize ISO timestamps to YYYY-MM-DD."""
+    """Extract an updated date, normalizing ISO timestamps."""
     patterns = (
         r'"datePublished"\s*:\s*"([^"]+)"',
         r'"lastUpdated"\s*:\s*"([^"]+)"',
@@ -264,7 +260,7 @@ def parse_updated_date_from_html(html: str) -> str | None:
 
 
 def parse_app_name_from_html(html: str) -> str | None:
-    """Extract an app name from Open Graph metadata or the page title."""
+    """Extract an app name from Open Graph metadata or page title."""
     patterns = (
         r'<meta[^>]+property=["\']og:title["\'][^>]+'
         r'content=["\']([^"\']+)',
@@ -300,26 +296,137 @@ def parse_app_name_from_html(html: str) -> str | None:
 
 
 # ---------------------------------------------------------------------
-# Metadata fetching
+# Metadata normalization
+# ---------------------------------------------------------------------
+
+def _normalize_version(value: Any) -> str | None:
+    """Return a valid version string or None."""
+    if value is None:
+        return None
+
+    result = str(value).strip()
+
+    if not result or result.lower() in {
+        "none", "null", "unknown", "n/a", "unavailable"
+    }:
+        return None
+
+    return result
+
+
+def _normalize_date(value: Any) -> str | None:
+    """Normalize common date values to YYYY-MM-DD where possible."""
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+
+    if isinstance(value, date):
+        return value.isoformat()
+
+    if isinstance(value, (int, float)):
+        # Google Play scraper commonly uses Unix milliseconds.
+        timestamp = float(value)
+
+        if timestamp > 10_000_000_000:
+            timestamp /= 1000
+
+        try:
+            return datetime.fromtimestamp(
+                timestamp,
+                tz=timezone.utc,
+            ).date().isoformat()
+        except (ValueError, OverflowError, OSError):
+            return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    iso_match = re.match(r"^(\d{4}-\d{2}-\d{2})", text)
+    if iso_match:
+        return iso_match.group(1)
+
+    for fmt in (
+        "%b %d, %Y",
+        "%B %d, %Y",
+        "%d %b %Y",
+        "%d %B %Y",
+    ):
+        try:
+            return datetime.strptime(text, fmt).date().isoformat()
+        except ValueError:
+            continue
+
+    return text
+
+
+# ---------------------------------------------------------------------
+# App metadata fetching
 # ---------------------------------------------------------------------
 
 def fetch_app_metadata(package_id: str) -> dict[str, Any]:
-    """Fetch metadata for a package without inventing missing values."""
+    """Fetch app details using google-play-scraper, then HTML fallback."""
     url = (
         "https://play.google.com/store/apps/details"
         f"?id={package_id}&hl=en&gl=US"
     )
 
-    response = _request(url)
-    html = response.text
+    scraper_error: Exception | None = None
 
-    return {
-        "package_id": package_id,
-        "name": parse_app_name_from_html(html) or package_id,
-        "version": parse_version_from_html(html),
-        "last_updated": parse_updated_date_from_html(html),
-        "play_store_url": url,
-    }
+    # Prefer structured metadata from google-play-scraper.
+    try:
+        from google_play_scraper import app as play_store_app
+
+        data = play_store_app(
+            package_id,
+            lang="en",
+            country="us",
+        )
+
+        version = _normalize_version(data.get("version"))
+        updated = _normalize_date(data.get("updated"))
+        name = data.get("title") or package_id
+
+        # If structured metadata is available, return it directly.
+        if version or updated:
+            return {
+                "package_id": package_id,
+                "name": name,
+                "version": version,
+                "last_updated": updated,
+                "play_store_url": url,
+            }
+
+    except Exception as exc:
+        scraper_error = exc
+
+    # Fallback to HTML extraction when the scraper fails or lacks fields.
+    try:
+        response = _request(url)
+        html = response.text
+
+        version = _normalize_version(parse_version_from_html(html))
+        updated = _normalize_date(parse_updated_date_from_html(html))
+        name = parse_app_name_from_html(html) or package_id
+
+        # Do not invent version numbers when neither source supplies one.
+        return {
+            "package_id": package_id,
+            "name": name,
+            "version": version,
+            "last_updated": updated,
+            "play_store_url": url,
+        }
+
+    except requests.RequestException as exc:
+        if scraper_error is not None:
+            raise RuntimeError(
+                f"Could not fetch metadata for {package_id}. "
+                f"Scraper error: {scraper_error}; HTTP fallback error: {exc}"
+            ) from exc
+        raise
 
 
 # ---------------------------------------------------------------------
@@ -343,7 +450,7 @@ def _read_json(
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
-    """Write JSON using a temporary file to avoid partial writes."""
+    """Write JSON via a temporary file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_suffix(path.suffix + ".tmp")
 
@@ -363,10 +470,10 @@ def _utc_now() -> str:
 # ---------------------------------------------------------------------
 
 def run_scan() -> dict[str, Any]:
-    """Scan discovered apps and update current inventory and history.
+    """Scan discovered apps and update inventory and history.
 
-    Existing JSON files are not modified if discovery or metadata
-    fetching fails. Missing fresh versions do not create false changes.
+    Discovery and metadata fetching complete before existing files are
+    read or changed. Missing fresh versions never create false changes.
     """
     package_ids, discovery_source = discover_package_ids()
 
@@ -375,7 +482,7 @@ def run_scan() -> dict[str, Any]:
             "No packages discovered; existing inventory was preserved."
         )
 
-    # Fetch every app before reading or writing inventory files.
+    # Fetch all metadata before writing any inventory files.
     fresh_apps: list[dict[str, Any]] = []
 
     for package_id in sorted(package_ids):
@@ -425,15 +532,17 @@ def run_scan() -> dict[str, Any]:
         package_id = fresh["package_id"]
         previous = old_by_package.get(package_id, {})
 
-        old_version = previous.get("version")
-        new_version = fresh.get("version")
+        old_version = _normalize_version(previous.get("version"))
+        new_version = _normalize_version(fresh.get("version"))
 
-        # Keep the last known version if Google Play omits the new one.
-        if not new_version and old_version:
+        fresh["version"] = new_version
+        fresh["last_updated"] = _normalize_date(
+            fresh.get("last_updated")
+        )
+
+        # Preserve previously known metadata when the latest fetch omits it.
+        if new_version is None and old_version is not None:
             fresh["version"] = old_version
-
-        fresh["first_seen"] = previous.get("first_seen") or scan_time
-        fresh["last_seen"] = scan_time
 
         if not fresh.get("last_updated") and previous.get("last_updated"):
             fresh["last_updated"] = previous["last_updated"]
@@ -444,8 +553,15 @@ def run_scan() -> dict[str, Any]:
         ) and previous.get("name"):
             fresh["name"] = previous["name"]
 
-        # Compare only when both old and fresh versions are available.
-        if old_version and new_version and old_version != new_version:
+        fresh["first_seen"] = previous.get("first_seen") or scan_time
+        fresh["last_seen"] = scan_time
+
+        # Report a version change only when both values are known.
+        if (
+            old_version is not None
+            and new_version is not None
+            and old_version != new_version
+        ):
             changes.append(
                 {
                     "package_id": package_id,
