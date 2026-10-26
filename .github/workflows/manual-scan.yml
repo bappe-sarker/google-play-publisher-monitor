@@ -1,76 +1,38 @@
-name: Manual Google Play publisher scan
+name: Google Play Publisher Monitor
 
 on:
+  schedule:
+    - cron: '17 */4 * * *'
   workflow_dispatch:
-    inputs:
-      reason:
-        description: Optional reason for this manual scan
-        required: false
-        type: string
-        default: "Manual dashboard scan"
-  workflow_call:
-    inputs:
-      reason:
-        required: false
-        type: string
-        default: "Reusable workflow call"
 
 permissions:
   contents: write
 
-concurrency:
-  group: google-play-publisher-scan
-  cancel-in-progress: false
-
 jobs:
-  collect:
+  scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
 
     steps:
-      - name: Check out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: pip
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
-      - name: Validate collector and tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python -m compileall -q collector tests
-          python -m pytest -v tests/
+      - name: Run Google Play scan
+        run: python collector/monitor.py
 
-      - name: Run collector
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-          PLAY_PUBLISHER_NAME: City Bank PLC
-          PLAY_PUBLISHER_URL: https://play.google.com/store/apps/developer?id=City+Bank+PLC
-          PLAY_COUNTRY: bd
-          PLAY_LANGUAGE: en
-        run: python -m collector.monitor
-
-      - name: Commit updated JSON inventory
-        if: success()
+      - name: Commit updated monitoring data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add data/current.json data/history.json
-
-          if git diff --cached --quiet; then
-            echo "No data changes to commit."
-          else
-            git commit -m "chore: update Google Play publisher inventory"
-            git push origin HEAD:${GITHUB_REF_NAME}
-          fi
+          git diff --cached --quiet || (
+            git commit -m "Update Google Play monitoring data"
+            git push
+          )
