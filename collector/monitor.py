@@ -1,3 +1,69 @@
+import re
+from html.parser import HTMLParser
+from urllib.parse import parse_qs, unquote, urlparse
+class AppLinkParser(HTMLParser):
+    """Extract valid app package IDs from Google Play HTML."""
+
+    def __init__(self):
+        super().__init__()
+        self.package_ids = set()
+
+    def handle_starttag(self, tag, attrs):
+        for key, value in attrs:
+            if key != "href" or not value:
+                continue
+
+            parsed = urlparse(value)
+            if parsed.path.endswith("/store/apps/details"):
+                package_id = parse_qs(parsed.query).get("id", [None])[0]
+
+                if package_id and re.fullmatch(
+                    r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+",
+                    package_id,
+                ):
+                    self.package_ids.add(package_id)
+
+
+def parse_version_from_html(html: str) -> str | None:
+    """Return an explicitly published version, or None if unavailable."""
+
+    patterns = [
+        r'"softwareVersion"\s*:\s*"([^"\\]{1,100})"',
+        r'"version"\s*:\s*"([^"\\]{1,100})"',
+        r'itemprop=["\']softwareVersion["\'][^>]*content=["\']([^"\']+)',
+        r'content=["\']([^"\']+)["\'][^>]*itemprop=["\']softwareVersion["\']',
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, html, re.IGNORECASE)
+        if match:
+            version = unquote(match.group(1)).strip()
+
+            if version and version.casefold() not in {
+                "varies with device",
+                "unknown",
+                "n/a",
+            }:
+                return version
+
+    return None
+
+
+def parse_updated_date_from_html(html: str) -> str | None:
+    """Extract a date from structured metadata when explicitly available."""
+
+    patterns = [
+        r'"datePublished"\s*:\s*"(\d{4}-\d{2}-\d{2})',
+        r'"uploadDate"\s*:\s*"(\d{4}-\d{2}-\d{2})',
+        r'"updated"\s*:\s*"(\d{4}-\d{2}-\d{2})',
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, html, re.IGNORECASE)
+        if match:
+            return match.group(1)
+
+    return None
 def discover_package_ids() -> tuple[set[str], str]:
     """Discover apps conservatively using publisher HTML and search fallback."""
     errors: list[str] = []
