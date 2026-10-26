@@ -1,4 +1,10 @@
 {
-  "scans": [],
+  "scans": [
+    {
+      "timestamp": "2026-10-26T15:31:03.465920+00:00",
+      "app_count": 6,
+      "discovery_source": "publisher_page"
+    }
+  ],
   "changes": []
 }
