@@ -1,8 +1,5 @@
-"""Google Play Publisher Monitor collector.
 
-Scans a publisher's Google Play apps, extracts available metadata,
-and records version changes without inventing missing version values.
-"""
+"""Google Play Publisher Monitor collector."""
 
 from __future__ import annotations
 
@@ -40,11 +37,11 @@ USER_AGENT = (
 
 
 # ---------------------------------------------------------------------
-# HTTP helpers
+# HTTP helper
 # ---------------------------------------------------------------------
 
 def _request(url: str) -> requests.Response:
-    """Request a page and raise an error for unsuccessful HTTP responses."""
+    """Fetch a URL and raise for HTTP errors."""
     response = requests.get(
         url,
         headers={"User-Agent": USER_AGENT},
@@ -55,17 +52,21 @@ def _request(url: str) -> requests.Response:
 
 
 # ---------------------------------------------------------------------
-# Google Play HTML parsing
+# Publisher page parsing
 # ---------------------------------------------------------------------
 
 class AppLinkParser(HTMLParser):
-    """Collect Google Play app links from publisher-page HTML."""
+    """Extract package IDs from Google Play app detail links."""
 
     def __init__(self) -> None:
         super().__init__()
         self.package_ids: set[str] = set()
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
         if tag.lower() != "a":
             return
 
@@ -83,22 +84,48 @@ class AppLinkParser(HTMLParser):
         package_id = parse_qs(parsed.query).get("id", [None])[0]
 
         if package_id and re.fullmatch(
-            r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package_id
+            r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+",
+            package_id,
         ):
             self.package_ids.add(package_id)
 
 
 def parse_publisher_app_links(html: str) -> set[str]:
-    """Return unique package IDs found in publisher-page HTML."""
+    """Return package IDs discovered in publisher page HTML."""
     parser = AppLinkParser()
     parser.feed(html)
     parser.close()
     return parser.package_ids
 
 
-def _extract_json_values(html: str, keys: tuple[str, ...]) -> list[str]:
-    """Extract string values associated with candidate keys in embedded JSON."""
-    found: list[str] = []
+def discover_package_ids() -> tuple[set[str], str]:
+    """Discover packages from the publisher page.
+
+    Raises an exception if discovery fails rather than treating an
+    incomplete inventory as a successful scan.
+    """
+    response = _request(PUBLISHER_URL)
+    package_ids = parse_publisher_app_links(response.text)
+
+    if not package_ids:
+        raise RuntimeError(
+            "No app links found on the publisher page. "
+            "Existing inventory files will be preserved."
+        )
+
+    return package_ids, "publisher_page"
+
+
+# ---------------------------------------------------------------------
+# Metadata parsing
+# ---------------------------------------------------------------------
+
+def _extract_json_values(
+    html: str,
+    keys: tuple[str, ...],
+) -> list[str]:
+    """Extract quoted string values for candidate JSON keys."""
+    values: list[str] = []
 
     for key in keys:
         pattern = (
@@ -108,56 +135,49 @@ def _extract_json_values(html: str, keys: tuple[str, ...]) -> list[str]:
         )
 
         for match in re.finditer(pattern, html, re.IGNORECASE):
-            raw = match.group(1)
+            raw_value = match.group(1)
 
             try:
-                value = json.loads('"' + raw + '"')
+                value = json.loads('"' + raw_value + '"')
             except (json.JSONDecodeError, TypeError):
-                value = raw
+                value = raw_value
 
             if isinstance(value, str) and value.strip():
-                found.append(value.strip())
+                values.append(value.strip())
 
-    return found
+    return values
 
 
-def parse_version_from_software_version_json(html: str) -> str | None:
-    """Extract a version from softwareVersion fields in embedded JSON."""
-    values = _extract_json_values(html, ("softwareVersion",))
-
-    for value in values:
-        value = value.strip()
-
-        if value and value.lower() not in {"null", "unknown", "n/a"}:
+def parse_version_from_software_version_json(
+    html: str,
+) -> str | None:
+    """Extract a version from softwareVersion fields."""
+    for value in _extract_json_values(html, ("softwareVersion",)):
+        if value.lower() not in {"null", "unknown", "n/a"}:
             return value
 
     return None
 
 
 def parse_version_from_version_json(html: str) -> str | None:
-    """Extract a version from version fields in embedded JSON."""
-    values = _extract_json_values(html, ("version",))
-
-    for value in values:
-        value = value.strip()
-
-        if value and value.lower() not in {"null", "unknown", "n/a"}:
-            # Avoid returning obvious non-version metadata.
-            if re.search(r"\d", value):
-                return value
+    """Extract a version from version fields."""
+    for value in _extract_json_values(html, ("version",)):
+        if (
+            value.lower() not in {"null", "unknown", "n/a"}
+            and re.search(r"\d", value)
+        ):
+            return value
 
     return None
 
 
 def parse_version_from_itemprop(html: str) -> str | None:
-    """Extract a version from an itemprop='softwareVersion' element."""
+    """Extract the softwareVersion itemprop from HTML."""
     patterns = (
         r'<[^>]*itemprop=["\']softwareVersion["\'][^>]*'
         r'content=["\']([^"\']+)["\'][^>]*>',
         r'<[^>]*content=["\']([^"\']+)["\'][^>]*'
         r'itemprop=["\']softwareVersion["\'][^>]*>',
-        r'<meta[^>]*itemprop=["\']softwareVersion["\'][^>]*'
-        r'content=["\']([^"\']+)["\'][^>]*>',
     )
 
     for pattern in patterns:
@@ -165,14 +185,17 @@ def parse_version_from_itemprop(html: str) -> str | None:
 
         if match:
             value = match.group(1).strip()
-            if value and value.lower() not in {"null", "unknown", "n/a"}:
+
+            if value and value.lower() not in {
+                "null", "unknown", "n/a"
+            }:
                 return value
 
     return None
 
 
 def parse_version_from_html(html: str) -> str | None:
-    """Try supported HTML/JSON patterns and return a version or None."""
+    """Return the first version found, or None if unavailable."""
     return (
         parse_version_from_software_version_json(html)
         or parse_version_from_version_json(html)
@@ -181,7 +204,7 @@ def parse_version_from_html(html: str) -> str | None:
 
 
 def parse_updated_date_from_html(html: str) -> str | None:
-    """Extract a Google Play updated date when one is present."""
+    """Extract an updated date, normalizing ISO timestamps to YYYY-MM-DD."""
     patterns = (
         r'"datePublished"\s*:\s*"([^"]+)"',
         r'"lastUpdated"\s*:\s*"([^"]+)"',
@@ -190,45 +213,65 @@ def parse_updated_date_from_html(html: str) -> str | None:
 
     for pattern in patterns:
         match = re.search(pattern, html, re.IGNORECASE)
-        if match:
-            value = match.group(1).strip()
-            if value:
-                return value
 
-    # Common visible date formats, for example "Jan 5, 2026".
-    match = re.search(
+        if not match:
+            continue
+
+        value = match.group(1).strip()
+
+        if not value:
+            continue
+
+        iso_match = re.match(r"^(\d{4}-\d{2}-\d{2})", value)
+
+        if iso_match:
+            return iso_match.group(1)
+
+        return value
+
+    visible_date = re.search(
         r"(?:Updated on|Updated)\s*"
         r"([A-Z][a-z]{2,8}\s+\d{1,2},?\s+\d{4})",
         html,
         re.IGNORECASE,
     )
 
-    if match:
-        return match.group(1).strip()
+    if visible_date:
+        return visible_date.group(1).strip()
 
     return None
 
 
 def parse_app_name_from_html(html: str) -> str | None:
-    """Extract the app title from the page title or embedded metadata."""
-    match = re.search(
-        r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)',
-        html,
-        re.IGNORECASE,
+    """Extract an app title from page metadata or the title element."""
+    patterns = (
+        r'<meta[^>]+property=["\']og:title["\'][^>]+'
+        r'content=["\']([^"\']+)',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+'
+        r'property=["\']og:title["\']',
     )
 
-    if match:
-        return match.group(1).strip()
+    for pattern in patterns:
+        match = re.search(pattern, html, re.IGNORECASE)
 
-    match = re.search(
+        if match:
+            return match.group(1).strip()
+
+    title_match = re.search(
         r"<title[^>]*>(.*?)</title>",
         html,
         re.IGNORECASE | re.DOTALL,
     )
 
-    if match:
-        title = re.sub(r"\s+", " ", match.group(1)).strip()
-        title = re.sub(r"\s*-\s*Apps on Google Play\s*$", "", title)
+    if title_match:
+        title = re.sub(r"\s+", " ", title_match.group(1)).strip()
+        title = re.sub(
+            r"\s*-\s*Apps on Google Play\s*$",
+            "",
+            title,
+            flags=re.IGNORECASE,
+        )
+
         if title:
             return title
 
@@ -236,43 +279,11 @@ def parse_app_name_from_html(html: str) -> str | None:
 
 
 # ---------------------------------------------------------------------
-# Publisher discovery
-# ---------------------------------------------------------------------
-
-def discover_package_ids() -> tuple[set[str], str]:
-    """Discover package IDs from the configured publisher page.
-
-    Returns:
-        (package IDs, discovery source)
-
-    Raises:
-        RuntimeError: if the publisher page cannot be fetched or no apps
-        can be identified. A search result alone is not treated as a
-        complete publisher inventory.
-    """
-    response = _request(PUBLISHER_URL)
-    package_ids = parse_publisher_app_links(response.text)
-
-    if not package_ids:
-        raise RuntimeError(
-            "No app links were found on the publisher page. "
-            "The page may have changed, returned a consent page, or "
-            "blocked automated requests. Existing inventory was preserved."
-        )
-
-    return package_ids, "publisher_page"
-
-
-# ---------------------------------------------------------------------
-# App metadata
+# App metadata fetching
 # ---------------------------------------------------------------------
 
 def fetch_app_metadata(package_id: str) -> dict[str, Any]:
-    """Fetch metadata for one Google Play package.
-
-    Missing versions remain None. They are never replaced with a guessed
-    value or a fabricated default.
-    """
+    """Fetch metadata for one package without inventing missing values."""
     url = (
         "https://play.google.com/store/apps/details"
         f"?id={package_id}&hl=en&gl=US"
@@ -281,24 +292,23 @@ def fetch_app_metadata(package_id: str) -> dict[str, Any]:
     response = _request(url)
     html = response.text
 
-    version = parse_version_from_html(html)
-    last_updated = parse_updated_date_from_html(html)
-    name = parse_app_name_from_html(html) or package_id
-
     return {
         "package_id": package_id,
-        "name": name,
-        "version": version,
-        "last_updated": last_updated,
+        "name": parse_app_name_from_html(html) or package_id,
+        "version": parse_version_from_html(html),
+        "last_updated": parse_updated_date_from_html(html),
         "play_store_url": url,
     }
 
 
 # ---------------------------------------------------------------------
-# JSON storage helpers
+# JSON persistence
 # ---------------------------------------------------------------------
 
-def _read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
+def _read_json(
+    path: Path,
+    default: dict[str, Any],
+) -> dict[str, Any]:
     if not path.exists():
         return default.copy()
 
@@ -312,7 +322,7 @@ def _read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
-    """Write JSON atomically to avoid leaving a partial output file."""
+    """Write JSON through a temporary file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_suffix(path.suffix + ".tmp")
 
@@ -332,22 +342,20 @@ def _utc_now() -> str:
 # ---------------------------------------------------------------------
 
 def run_scan() -> dict[str, Any]:
-    """Scan the publisher and update inventory/history after a complete scan.
+    """Run a scan and persist inventory/history after successful fetching.
 
-    If discovery or any metadata request fails, this function raises and
-    does not overwrite the existing inventory or history.
-
-    If an app has no version in fresh metadata, its previous known version
-    is preserved and no version-change event is created.
+    Missing fresh version values never generate false version-change
+    events. If discovery or metadata fetching fails, existing JSON files
+    are not written.
     """
     package_ids, discovery_source = discover_package_ids()
 
     if not package_ids:
         raise RuntimeError(
-            "Publisher discovery returned no packages; existing data preserved."
+            "No packages discovered; existing inventory was preserved."
         )
 
-    # Fetch all metadata before writing either output file.
+    # Fetch everything before modifying stored data.
     fresh_apps: list[dict[str, Any]] = []
 
     for package_id in sorted(package_ids):
@@ -355,26 +363,39 @@ def run_scan() -> dict[str, Any]:
 
         if not isinstance(metadata, dict):
             raise RuntimeError(
-                f"Invalid metadata returned for package {package_id}"
+                f"Invalid metadata for package {package_id}"
             )
 
-        if not metadata.get("package_id"):
-            metadata["package_id"] = package_id
-
+        metadata.setdefault("package_id", package_id)
         fresh_apps.append(metadata)
 
-    old_current = _read_json(CURRENT_FILE, {"apps": [], "last_scan": None})
-    old_history = _read_json(HISTORY_FILE, {"scans": [], "changes": []})
+    old_current = _read_json(
+        CURRENT_FILE,
+        {"apps": [], "last_scan": None},
+    )
+    old_history = _read_json(
+        HISTORY_FILE,
+        {"scans": [], "changes": []},
+    )
 
     old_apps = old_current.get("apps", [])
+
     if not isinstance(old_apps, list):
-        raise ValueError("The apps field in current.json must be a list.")
+        raise ValueError("current.json 'apps' must be a list.")
 
     old_by_package = {
         app.get("package_id"): app
         for app in old_apps
         if isinstance(app, dict) and app.get("package_id")
     }
+
+    scans = old_history.get("scans", [])
+    history_changes = old_history.get("changes", [])
+
+    if not isinstance(scans, list) or not isinstance(history_changes, list):
+        raise ValueError(
+            "history.json must contain 'scans' and 'changes' lists."
+        )
 
     scan_time = _utc_now()
     current_apps: list[dict[str, Any]] = []
@@ -383,27 +404,27 @@ def run_scan() -> dict[str, Any]:
     for fresh in fresh_apps:
         package_id = fresh["package_id"]
         previous = old_by_package.get(package_id, {})
+
         old_version = previous.get("version")
         new_version = fresh.get("version")
 
-        # If Google Play does not expose the current version, preserve
-        # the previous known version rather than recording a false change.
+        # Preserve the known version if the fresh version is unavailable.
         if not new_version and old_version:
             fresh["version"] = old_version
 
-        fresh["first_seen"] = (
-            previous.get("first_seen") or scan_time
-        )
+        fresh["first_seen"] = previous.get("first_seen") or scan_time
         fresh["last_seen"] = scan_time
 
         if not fresh.get("last_updated") and previous.get("last_updated"):
             fresh["last_updated"] = previous["last_updated"]
 
-        if not fresh.get("name") or fresh.get("name") == package_id:
-            if previous.get("name"):
-                fresh["name"] = previous["name"]
+        if (
+            not fresh.get("name")
+            or fresh.get("name") == package_id
+        ) and previous.get("name"):
+            fresh["name"] = previous["name"]
 
-        # Only compare versions when both old and fresh values are known.
+        # Only report a change when both versions are known.
         if old_version and new_version and old_version != new_version:
             changes.append(
                 {
@@ -418,21 +439,6 @@ def run_scan() -> dict[str, Any]:
 
         current_apps.append(fresh)
 
-    # Apps that disappear from discovery are not silently deleted from
-    # history, but only currently discovered apps are listed in current.json.
-    new_current = {
-        "last_scan": scan_time,
-        "discovery_source": discovery_source,
-        "app_count": len(current_apps),
-        "apps": current_apps,
-    }
-
-    scans = old_history.get("scans", [])
-    history_changes = old_history.get("changes", [])
-
-    if not isinstance(scans, list) or not isinstance(history_changes, list):
-        raise ValueError("history.json must contain scans and changes lists.")
-
     scans.append(
         {
             "timestamp": scan_time,
@@ -442,12 +448,18 @@ def run_scan() -> dict[str, Any]:
     )
     history_changes.extend(changes)
 
+    new_current = {
+        "last_scan": scan_time,
+        "discovery_source": discovery_source,
+        "app_count": len(current_apps),
+        "apps": current_apps,
+    }
+
     new_history = {
         "scans": scans,
         "changes": history_changes,
     }
 
-    # Both files are prepared in memory before either is written.
     _write_json(CURRENT_FILE, new_current)
     _write_json(HISTORY_FILE, new_history)
 
@@ -455,6 +467,7 @@ def run_scan() -> dict[str, Any]:
         "last_scan": scan_time,
         "app_count": len(current_apps),
         "changes_detected": len(changes),
+        "changes": changes,
         "discovery_source": discovery_source,
     }
 
