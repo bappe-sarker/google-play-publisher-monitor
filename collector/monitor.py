@@ -23,9 +23,15 @@ DATA_DIR = ROOT / "data"
 CURRENT_FILE = DATA_DIR / "current.json"
 HISTORY_FILE = DATA_DIR / "history.json"
 
+# Corrected publisher URL: no trailing punctuation after PLC.
 PUBLISHER_URL = (
     "https://play.google.com/store/apps/developer"
-    "?id=City%20Bank%20PLC"
+    "?id=City+Bank+PLC."
+)
+
+SEARCH_URL = (
+    "https://play.google.com/store/search"
+    "?q=City%20Bank%20PLC&c=apps&hl=en&gl=US"
 )
 
 REQUEST_TIMEOUT = 25
@@ -41,7 +47,7 @@ USER_AGENT = (
 # ---------------------------------------------------------------------
 
 def _request(url: str) -> requests.Response:
-    """Fetch a URL and raise for HTTP errors."""
+    """Fetch a URL and raise for unsuccessful HTTP responses."""
     response = requests.get(
         url,
         headers={"User-Agent": USER_AGENT},
@@ -52,7 +58,7 @@ def _request(url: str) -> requests.Response:
 
 
 # ---------------------------------------------------------------------
-# Publisher page parsing
+# Google Play HTML parsing
 # ---------------------------------------------------------------------
 
 class AppLinkParser(HTMLParser):
@@ -70,9 +76,7 @@ class AppLinkParser(HTMLParser):
         if tag.lower() != "a":
             return
 
-        attributes = dict(attrs)
-        href = attributes.get("href")
-
+        href = dict(attrs).get("href")
         if not href:
             return
 
@@ -91,7 +95,7 @@ class AppLinkParser(HTMLParser):
 
 
 def parse_publisher_app_links(html: str) -> set[str]:
-    """Return package IDs discovered in publisher page HTML."""
+    """Return unique package IDs from Google Play app links."""
     parser = AppLinkParser()
     parser.feed(html)
     parser.close()
@@ -99,32 +103,46 @@ def parse_publisher_app_links(html: str) -> set[str]:
 
 
 def discover_package_ids() -> tuple[set[str], str]:
-    """Discover packages from the publisher page.
+    """Discover package IDs from the publisher page or search results.
 
-    Raises an exception if discovery fails rather than treating an
-    incomplete inventory as a successful scan.
+    Search-based discovery is best-effort and may not find every app.
     """
-    response = _request(PUBLISHER_URL)
-    package_ids = parse_publisher_app_links(response.text)
+    errors: list[str] = []
 
-    if not package_ids:
-        raise RuntimeError(
-            "No app links found on the publisher page. "
-            "Existing inventory files will be preserved."
-        )
+    sources = (
+        (PUBLISHER_URL, "publisher_page"),
+        (SEARCH_URL, "google_play_search"),
+    )
 
-    return package_ids, "publisher_page"
+    for url, source in sources:
+        try:
+            response = _request(url)
+            package_ids = parse_publisher_app_links(response.text)
+
+            if package_ids:
+                return package_ids, source
+
+            errors.append(f"{source}: no app links found")
+
+        except requests.RequestException as exc:
+            errors.append(f"{source}: {exc}")
+
+    raise RuntimeError(
+        "Unable to discover Google Play apps. "
+        + " | ".join(errors)
+        + ". Existing inventory was preserved."
+    )
 
 
 # ---------------------------------------------------------------------
-# Metadata parsing
+# Version parsing
 # ---------------------------------------------------------------------
 
 def _extract_json_values(
     html: str,
     keys: tuple[str, ...],
 ) -> list[str]:
-    """Extract quoted string values for candidate JSON keys."""
+    """Extract quoted string values associated with candidate JSON keys."""
     values: list[str] = []
 
     for key in keys:
@@ -151,7 +169,7 @@ def _extract_json_values(
 def parse_version_from_software_version_json(
     html: str,
 ) -> str | None:
-    """Extract a version from softwareVersion fields."""
+    """Extract a version from a softwareVersion field."""
     for value in _extract_json_values(html, ("softwareVersion",)):
         if value.lower() not in {"null", "unknown", "n/a"}:
             return value
@@ -160,7 +178,7 @@ def parse_version_from_software_version_json(
 
 
 def parse_version_from_version_json(html: str) -> str | None:
-    """Extract a version from version fields."""
+    """Extract a version from a version field."""
     for value in _extract_json_values(html, ("version",)):
         if (
             value.lower() not in {"null", "unknown", "n/a"}
@@ -172,7 +190,7 @@ def parse_version_from_version_json(html: str) -> str | None:
 
 
 def parse_version_from_itemprop(html: str) -> str | None:
-    """Extract the softwareVersion itemprop from HTML."""
+    """Extract softwareVersion from an HTML itemprop."""
     patterns = (
         r'<[^>]*itemprop=["\']softwareVersion["\'][^>]*'
         r'content=["\']([^"\']+)["\'][^>]*>',
@@ -195,7 +213,7 @@ def parse_version_from_itemprop(html: str) -> str | None:
 
 
 def parse_version_from_html(html: str) -> str | None:
-    """Return the first version found, or None if unavailable."""
+    """Return the first detected version, or None."""
     return (
         parse_version_from_software_version_json(html)
         or parse_version_from_version_json(html)
@@ -203,8 +221,12 @@ def parse_version_from_html(html: str) -> str | None:
     )
 
 
+# ---------------------------------------------------------------------
+# Date and app-name parsing
+# ---------------------------------------------------------------------
+
 def parse_updated_date_from_html(html: str) -> str | None:
-    """Extract an updated date, normalizing ISO timestamps to YYYY-MM-DD."""
+    """Extract updated date and normalize ISO timestamps to YYYY-MM-DD."""
     patterns = (
         r'"datePublished"\s*:\s*"([^"]+)"',
         r'"lastUpdated"\s*:\s*"([^"]+)"',
@@ -218,7 +240,6 @@ def parse_updated_date_from_html(html: str) -> str | None:
             continue
 
         value = match.group(1).strip()
-
         if not value:
             continue
 
@@ -243,7 +264,7 @@ def parse_updated_date_from_html(html: str) -> str | None:
 
 
 def parse_app_name_from_html(html: str) -> str | None:
-    """Extract an app title from page metadata or the title element."""
+    """Extract an app name from Open Graph metadata or the page title."""
     patterns = (
         r'<meta[^>]+property=["\']og:title["\'][^>]+'
         r'content=["\']([^"\']+)',
@@ -257,14 +278,14 @@ def parse_app_name_from_html(html: str) -> str | None:
         if match:
             return match.group(1).strip()
 
-    title_match = re.search(
+    match = re.search(
         r"<title[^>]*>(.*?)</title>",
         html,
         re.IGNORECASE | re.DOTALL,
     )
 
-    if title_match:
-        title = re.sub(r"\s+", " ", title_match.group(1)).strip()
+    if match:
+        title = re.sub(r"\s+", " ", match.group(1)).strip()
         title = re.sub(
             r"\s*-\s*Apps on Google Play\s*$",
             "",
@@ -279,11 +300,11 @@ def parse_app_name_from_html(html: str) -> str | None:
 
 
 # ---------------------------------------------------------------------
-# App metadata fetching
+# Metadata fetching
 # ---------------------------------------------------------------------
 
 def fetch_app_metadata(package_id: str) -> dict[str, Any]:
-    """Fetch metadata for one package without inventing missing values."""
+    """Fetch metadata for a package without inventing missing values."""
     url = (
         "https://play.google.com/store/apps/details"
         f"?id={package_id}&hl=en&gl=US"
@@ -322,7 +343,7 @@ def _read_json(
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
-    """Write JSON through a temporary file."""
+    """Write JSON using a temporary file to avoid partial writes."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_suffix(path.suffix + ".tmp")
 
@@ -342,11 +363,10 @@ def _utc_now() -> str:
 # ---------------------------------------------------------------------
 
 def run_scan() -> dict[str, Any]:
-    """Run a scan and persist inventory/history after successful fetching.
+    """Scan discovered apps and update current inventory and history.
 
-    Missing fresh version values never generate false version-change
-    events. If discovery or metadata fetching fails, existing JSON files
-    are not written.
+    Existing JSON files are not modified if discovery or metadata
+    fetching fails. Missing fresh versions do not create false changes.
     """
     package_ids, discovery_source = discover_package_ids()
 
@@ -355,7 +375,7 @@ def run_scan() -> dict[str, Any]:
             "No packages discovered; existing inventory was preserved."
         )
 
-    # Fetch everything before modifying stored data.
+    # Fetch every app before reading or writing inventory files.
     fresh_apps: list[dict[str, Any]] = []
 
     for package_id in sorted(package_ids):
@@ -408,7 +428,7 @@ def run_scan() -> dict[str, Any]:
         old_version = previous.get("version")
         new_version = fresh.get("version")
 
-        # Preserve the known version if the fresh version is unavailable.
+        # Keep the last known version if Google Play omits the new one.
         if not new_version and old_version:
             fresh["version"] = old_version
 
@@ -424,7 +444,7 @@ def run_scan() -> dict[str, Any]:
         ) and previous.get("name"):
             fresh["name"] = previous["name"]
 
-        # Only report a change when both versions are known.
+        # Compare only when both old and fresh versions are available.
         if old_version and new_version and old_version != new_version:
             changes.append(
                 {
