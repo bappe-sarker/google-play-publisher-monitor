@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#092b55">
+  <meta name="description" content="Manual Google Play publisher inventory and version-change monitor for City Bank PLC.">
+  <title>Google Play Publisher Monitor | City Bank PLC</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-mark" aria-hidden="true">CB</div>
+    <div class="brand-copy"><span class="eyebrow">CITY BANK PLC.</span><h1>Google Play Publisher Monitor</h1></div>
+    <a class="publisher-link" href="https://play.google.com/store/apps/developer?id=City+Bank+PLC" target="_blank" rel="noopener noreferrer">View publisher <span aria-hidden="true">↗</span></a>
+  </header>
+  <main class="container">
+    <section class="intro">
+      <div><p class="eyebrow blue">EXTERNAL APP INVENTORY</p><h2>Publisher overview</h2><p class="muted">Public Android apps published by City Bank PLC, with observed versions and scan history.</p></div>
+      <div class="scan-actions"><span id="scan-status" class="status-pill"><i></i> Loading inventory</span><button id="scan-now" class="primary-button" type="button">↻ <span>Scan Now</span></button></div>
+    </section>
+    <section class="notice" id="scan-notice" hidden role="status"><strong>Manual scan</strong><p>GitHub Pages is static and cannot securely start a workflow with a private token. The button opens this repository’s GitHub Actions page. Sign in, select <em>Manual Google Play publisher scan</em>, click <em>Run workflow</em>, then return here and refresh after the run completes.</p><button id="dismiss-notice" class="text-button" type="button">Got it</button></section>
+    <section class="metrics" aria-label="Inventory summary">
+      <article class="metric-card"><span class="metric-label">Apps tracked</span><strong id="metric-apps">—</strong><span class="metric-foot">Current inventory</span></article>
+      <article class="metric-card"><span class="metric-label">New apps detected</span><strong id="metric-new">—</strong><span class="metric-foot">Recorded across scans</span></article>
+      <article class="metric-card"><span class="metric-label">Version changes</span><strong id="metric-updates">—</strong><span class="metric-foot">Recorded across scans</span></article>
+      <article class="metric-card"><span class="metric-label">Last successful scan</span><strong id="metric-scan" class="date-metric">—</strong><span class="metric-foot" id="metric-method">Waiting for first scan</span></article>
+    </section>
+    <section class="panel">
+      <div class="panel-heading"><div><h2>Application inventory</h2><p class="muted">Versions are shown only when found in public metadata. Missing values are never guessed.</p></div><span id="result-count" class="result-count">0 apps</span></div>
+      <div class="filters"><label class="search-wrap"><span class="sr-only">Search apps</span><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Search app name or package ID…"></label><label class="filter-label">Version status<select id="version-filter"><option value="all">All apps</option><option value="known">Version available</option><option value="missing">Version unavailable</option><option value="partial">Partial metadata</option></select></label><label class="filter-label">Sort by<select id="sort-by"><option value="name">App name</option><option value="updated">Last updated</option><option value="version">Version</option></select></label></div>
+      <div class="table-wrap"><table><thead><tr><th>Application</th><th>Package ID</th><th>Version</th><th>Last updated</th><th>Metadata</th><th>Play Store</th></tr></thead><tbody id="apps-body"><tr><td colspan="6" class="empty-state">Loading inventory…</td></tr></tbody></table></div>
+      <div id="empty-filter" class="empty-filter" hidden>No apps match these filters.</div>
+      <div class="table-footer"><span id="inventory-note">Inventory is loaded from repository JSON.</span><button id="refresh" class="secondary-button" type="button">Refresh dashboard</button></div>
+    </section>
+    <section class="panel history-panel"><div class="panel-heading"><div><h2>Scan history</h2><p class="muted">Manual scans and changes recorded in the repository.</p></div><span id="history-count" class="result-count">0 scans</span></div><div class="table-wrap"><table><thead><tr><th>Scan time (UTC)</th><th>Apps discovered</th><th>Inventory records</th><th>New apps</th><th>Version changes</th></tr></thead><tbody id="history-body"><tr><td colspan="5" class="empty-state">No scan history yet.</td></tr></tbody></table></div></section>
+    <footer><span>City Bank PLC · Internal monitoring dashboard</span><span>Data source: public Google Play listing · Manual scans only</span></footer>
+  </main>
+  <script src="config.js"></script><script src="app.js" defer></script>
+</body>
+</html>
