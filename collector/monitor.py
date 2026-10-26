@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Manual Google Play publisher monitor for City Bank PLC."""
-
-from __future__ import annotations
+"""Manual Google Play Publisher Monitor for City Bank PLC."""
 
 import json
 import logging
@@ -15,9 +13,13 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
 
+# Paths
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
+CURRENT_FILE = DATA_DIR / "current.json"
+HISTORY_FILE = DATA_DIR / "history.json"
 
+# Configuration
 PUBLISHER_NAME = os.getenv("PLAY_PUBLISHER_NAME", "City Bank PLC")
 PUBLISHER_URL = os.getenv(
     "PLAY_PUBLISHER_URL",
@@ -41,38 +43,38 @@ HEADERS = {
 PACKAGE_RE = re.compile(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+")
 
 
-def now_iso() -> str:
+def now_iso():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _read_json(path: Path, default: dict) -> dict:
-    """Read a JSON object without silently replacing corrupt existing data."""
+def _read_json(path, default):
+    """Read JSON without silently replacing corrupt existing data."""
     if not path.exists():
         return default.copy()
 
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"Cannot safely read {path}: {exc}") from exc
 
-    if not isinstance(value, dict):
+    if not isinstance(data, dict):
         raise RuntimeError(f"Expected a JSON object in {path}")
 
-    return value
+    return data
 
 
-def _write_json(path: Path, value: dict) -> None:
-    """Atomically replace a JSON file after writing its complete contents."""
+def _write_json(path, data):
+    """Write JSON atomically to an individual file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(
-        json.dumps(value, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(data, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     temporary.replace(path)
 
 
-def _request(url: str) -> requests.Response:
+def _request(url):
     response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
     response.raise_for_status()
     return response
@@ -83,7 +85,7 @@ class AppLinkParser(HTMLParser):
 
     def __init__(self):
         super().__init__()
-        self.package_ids: set[str] = set()
+        self.package_ids = set()
 
     def handle_starttag(self, tag, attrs):
         for key, value in attrs:
@@ -97,15 +99,15 @@ class AppLinkParser(HTMLParser):
                     self.package_ids.add(package_id)
 
 
-def parse_version_from_html(html: str) -> str | None:
-    """Extract an explicitly labelled version; return None if unavailable."""
-    patterns = (
+def parse_version_from_html(html):
+    """Return an explicitly exposed version, or None."""
+    patterns = [
         r'"softwareVersion"\s*:\s*"([^"\\]{1,100})"',
         r'"softwareVersion"\s*:\s*([0-9]+(?:\.[0-9A-Za-z_-]+){1,5})',
         r'"version"\s*:\s*"([0-9]+(?:\.[0-9A-Za-z_-]+){1,5})"',
         r'itemprop=["\']softwareVersion["\'][^>]*content=["\']([^"\']+)',
         r'content=["\']([^"\']+)["\'][^>]*itemprop=["\']softwareVersion["\']',
-    )
+    ]
 
     for pattern in patterns:
         match = re.search(pattern, html, re.IGNORECASE)
@@ -117,7 +119,9 @@ def parse_version_from_html(html: str) -> str | None:
             version
             and len(version) <= 100
             and version.casefold() not in {
-                "varies with device", "unknown", "n/a"
+                "varies with device",
+                "unknown",
+                "n/a",
             }
         ):
             return version
@@ -125,20 +129,19 @@ def parse_version_from_html(html: str) -> str | None:
     return None
 
 
-def parse_updated_date_from_html(html: str) -> str | None:
-    """Extract an explicitly available ISO update date."""
-    patterns = (
+def parse_updated_date_from_html(html):
+    """Extract an explicit update date, or None."""
+    patterns = [
         r'"datePublished"\s*:\s*"(\d{4}-\d{2}-\d{2})',
         r'"uploadDate"\s*:\s*"(\d{4}-\d{2}-\d{2})',
         r'"updated"\s*:\s*"(\d{4}-\d{2}-\d{2})',
-    )
+    ]
 
     for pattern in patterns:
         match = re.search(pattern, html, re.IGNORECASE)
         if match:
             return match.group(1)
 
-    # Also support Google Play's visible "Updated on" label.
     match = re.search(
         r"Updated on\s+([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})",
         html,
@@ -147,8 +150,8 @@ def parse_updated_date_from_html(html: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _parse_app(package_id: str, html: str) -> dict:
-    """Parse listing fields without fabricating missing metadata."""
+def _parse_app(package_id, html):
+    """Extract app metadata from a listing page."""
     title_match = (
         re.search(
             r'<meta[^>]+itemprop=["\']name["\'][^>]+content=["\']([^"\']+)',
@@ -165,22 +168,16 @@ def _parse_app(package_id: str, html: str) -> dict:
 
     title = (
         unquote(title_match.group(1)).strip()
-        if title_match else package_id
+        if title_match
+        else package_id
     )
     title = re.sub(r"\s*-\s*Apps on Google Play$", "", title, flags=re.I)
-
-    developer_match = re.search(
-        r'"author"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"',
-        html,
-        re.IGNORECASE,
-    )
 
     return {
         "package_id": package_id,
         "name": title,
         "version": parse_version_from_html(html) or "",
         "last_updated": parse_updated_date_from_html(html) or "",
-        "developer": developer_match.group(1) if developer_match else "",
         "play_url": (
             "https://play.google.com/store/apps/details?id="
             + package_id
@@ -188,26 +185,27 @@ def _parse_app(package_id: str, html: str) -> dict:
     }
 
 
-def discover_package_ids() -> tuple[set[str], str]:
-    """Discover publisher apps; fail closed if discovery cannot be trusted."""
-    errors: list[str] = []
+def discover_package_ids():
+    """Discover package IDs and identify the discovery source."""
+    errors = []
 
+    # Preferred method: publisher listing page.
     try:
         response = _request(PUBLISHER_URL)
         parser = AppLinkParser()
         parser.feed(response.text)
 
         if parser.package_ids:
-            LOG.info("Publisher page exposed %d package IDs",
+            LOG.info("Found %d app links on publisher page",
                      len(parser.package_ids))
             return parser.package_ids, "publisher_html"
 
         errors.append("Publisher page contained no app links")
     except Exception as exc:
         errors.append(f"Publisher page: {exc}")
-        LOG.warning("Publisher page discovery failed: %s", exc)
+        LOG.warning("Publisher page failed: %s", exc)
 
-    # Search can find candidates, but cannot guarantee the complete inventory.
+    # Fallback: search candidates and verify publisher ownership.
     try:
         from google_play_scraper import app, search
 
@@ -218,7 +216,7 @@ def discover_package_ids() -> tuple[set[str], str]:
             country=COUNTRY,
         )
 
-        verified: set[str] = set()
+        verified = set()
         for item in results:
             package_id = item.get("appId")
             if not package_id or not PACKAGE_RE.fullmatch(package_id):
@@ -231,23 +229,26 @@ def discover_package_ids() -> tuple[set[str], str]:
                     country=COUNTRY,
                 )
                 developer = (metadata.get("developer") or "").strip()
+
                 if developer.casefold() == PUBLISHER_NAME.strip().casefold():
                     verified.add(package_id)
+
             except Exception as exc:
                 LOG.warning("Could not verify %s: %s", package_id, exc)
 
         if verified:
-            # Do not silently claim a search result is the complete publisher list.
+            # Search does not guarantee complete publisher coverage.
             raise RuntimeError(
-                "Only partial search discovery was available "
-                f"({len(verified)} verified apps); refusing to update inventory."
+                f"Only {len(verified)} candidate apps were found through "
+                "search. Completeness cannot be verified; inventory preserved."
             )
 
-        errors.append("Search returned no verified publisher apps")
+        errors.append("Search returned no verified apps")
+
     except RuntimeError:
         raise
     except Exception as exc:
-        errors.append(f"Search fallback: {exc}")
+        errors.append(f"Google Play search fallback: {exc}")
 
     raise RuntimeError(
         "App discovery failed; existing inventory was preserved. "
@@ -255,59 +256,67 @@ def discover_package_ids() -> tuple[set[str], str]:
     )
 
 
-def run_scan() -> dict:
-    """Run a scan and atomically save inventory/history only on success."""
+def run_scan():
+    """Scan apps and preserve existing data if collection fails."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    current_file = DATA_DIR / "current.json"
-    history_file = DATA_DIR / "history.json"
 
-    current = _read_json(
-        current_file, {"apps": [], "last_scan": None}
-    )
-    history = _read_json(
-        history_file, {"scans": [], "changes": []}
-    )
+    # Use module-level paths so tests can override them with monkeypatch.
+    current_file = CURRENT_FILE
+    history_file = HISTORY_FILE
 
-    previous_apps = current.get("apps", [])
-    previous_by_id = {
+    current = _read_json(current_file, {"apps": [], "last_scan": None})
+    history = _read_json(history_file, {"scans": [], "changes": []})
+
+    old_apps = current.get("apps", [])
+    old_by_id = {
         item.get("package_id"): item
-        for item in previous_apps
+        for item in old_apps
         if item.get("package_id")
     }
 
-    # Any discovery failure occurs before either inventory file is written.
+    # Discovery errors happen before writing either inventory file.
     package_ids, source = discover_package_ids()
     if not package_ids:
-        raise RuntimeError("Discovery returned no apps; inventory preserved.")
+        raise RuntimeError("No apps discovered; inventory was preserved.")
 
     timestamp = now_iso()
     fresh_apps = []
     changes = []
 
+    # If any app request fails, stop before writing files.
+    # This prevents a partial scan from overwriting the inventory.
     for package_id in sorted(package_ids):
         response = _request(
             "https://play.google.com/store/apps/details"
             f"?id={package_id}&hl={LANGUAGE}&gl={COUNTRY.upper()}"
         )
         details = _parse_app(package_id, response.text)
-        old = previous_by_id.get(package_id)
+        previous = old_by_id.get(package_id)
 
         details["first_seen"] = (
-            old.get("first_seen", timestamp) if old else timestamp
+            previous.get("first_seen", timestamp)
+            if previous
+            else timestamp
         )
         details["last_seen"] = timestamp
 
-        old_version = (old or {}).get("version", "").strip()
+        old_version = (previous or {}).get("version", "").strip()
         new_version = details["version"].strip()
 
-        if old is None and previous_by_id:
+        if previous is None and old_by_id:
             changes.append({
                 "type": "NEW_APP",
                 "package_id": package_id,
                 "name": details["name"],
                 "detected_at": timestamp,
             })
-        elif old and old_version and new_version and old_version != new_version:
+
+        elif (
+            previous
+            and old_version
+            and new_version
+            and old_version != new_version
+        ):
             changes.append({
                 "type": "VERSION_UPDATED",
                 "package_id": package_id,
@@ -317,19 +326,20 @@ def run_scan() -> dict:
                 "detected_at": timestamp,
             })
 
-        # Do not erase a previously known version when fresh metadata is absent.
-        if old and not new_version:
-            details["version"] = old.get("version", "")
-        if old and not details["last_updated"]:
-            details["last_updated"] = old.get("last_updated", "")
+        # Keep known values when fresh metadata is missing.
+        if previous:
+            if not new_version:
+                details["version"] = previous.get("version", "")
+            if not details["last_updated"]:
+                details["last_updated"] = previous.get("last_updated", "")
 
         fresh_apps.append(details)
 
-    # Keep previously tracked apps if they were not returned this time.
-    discovered_ids = {item["package_id"] for item in fresh_apps}
-    for package_id, old in previous_by_id.items():
-        if package_id not in discovered_ids:
-            fresh_apps.append(old)
+    # Retain apps omitted from this scan; never infer that they were removed.
+    discovered = {item["package_id"] for item in fresh_apps}
+    for package_id, previous in old_by_id.items():
+        if package_id not in discovered:
+            fresh_apps.append(previous)
 
     snapshot = {
         "publisher": {
@@ -338,7 +348,10 @@ def run_scan() -> dict:
         },
         "last_scan": timestamp,
         "scan_source": source,
-        "apps": sorted(fresh_apps, key=lambda item: item["name"].casefold()),
+        "apps": sorted(
+            fresh_apps,
+            key=lambda item: item.get("name", "").casefold(),
+        ),
     }
 
     history.setdefault("scans", []).append({
@@ -349,22 +362,21 @@ def run_scan() -> dict:
     })
     history.setdefault("changes", []).extend(changes)
 
-    # Both files are written only after discovery and every app fetch succeeds.
+    # Write only after all app requests and parsing have succeeded.
     _write_json(current_file, snapshot)
     _write_json(history_file, history)
 
-    LOG.info(
-        "Scan completed: %d discovered, %d changes",
-        len(package_ids), len(changes),
-    )
+    LOG.info("Scan completed: %d apps, %d changes",
+             len(package_ids), len(changes))
     return snapshot
 
 
-def main() -> int:
+def main():
     logging.basicConfig(
         level=os.getenv("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(message)s",
     )
+
     try:
         run_scan()
         return 0
