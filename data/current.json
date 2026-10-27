@@ -1,5 +1,5 @@
 {
-  "last_scan": "2026-10-26T21:00:11.631366+00:00",
+  "last_scan": "2026-10-27T02:23:37.744177+00:00",
   "discovery_source": "publisher_page",
   "app_count": 6,
   "apps": [
@@ -10,7 +10,7 @@
       "last_updated": null,
       "play_store_url": "https://play.google.com/store/apps/details?id=com.cbl.remittance&hl=en&gl=US",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-26T21:00:11.631366+00:00"
+      "last_seen": "2026-10-27T02:23:37.744177+00:00"
     },
     {
       "package_id": "com.citybank.citysuperapp",
@@ -19,7 +19,7 @@
       "last_updated": null,
       "play_store_url": "https://play.google.com/store/apps/details?id=com.citybank.citysuperapp&hl=en&gl=US",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-26T21:00:11.631366+00:00"
+      "last_seen": "2026-10-27T02:23:37.744177+00:00"
     },
     {
       "package_id": "com.csicitycustodian.city_custodian",
@@ -28,7 +28,7 @@
       "last_updated": null,
       "play_store_url": "https://play.google.com/store/apps/details?id=com.csicitycustodian.city_custodian&hl=en&gl=US",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-26T21:00:11.631366+00:00"
+      "last_seen": "2026-10-27T02:23:37.744177+00:00"
     },
     {
       "package_id": "com.scf.city",
@@ -37,7 +37,7 @@
       "last_updated": "2026-04-07",
       "play_store_url": "https://play.google.com/store/apps/details?id=com.scf.city&hl=en&gl=US",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-26T21:00:11.631366+00:00"
+      "last_seen": "2026-10-27T02:23:37.744177+00:00"
     },
     {
       "package_id": "com.thecitybank.citylive",
@@ -46,7 +46,7 @@
       "last_updated": null,
       "play_store_url": "https://play.google.com/store/apps/details?id=com.thecitybank.citylive&hl=en&gl=US",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-26T21:00:11.631366+00:00"
+      "last_seen": "2026-10-27T02:23:37.744177+00:00"
     },
     {
       "package_id": "com.thecitybank.citytouch",
@@ -55,7 +55,7 @@
       "last_updated": "2026-10-08",
       "play_store_url": "https://play.google.com/store/apps/details?id=com.thecitybank.citytouch&hl=en&gl=US",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-26T21:00:11.631366+00:00"
+      "last_seen": "2026-10-27T02:23:37.744177+00:00"
     }
   ]
 }
