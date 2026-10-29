@@ -59,6 +59,11 @@
       "timestamp": "2026-10-29T05:42:05.360816+00:00",
       "app_count": 6,
       "discovery_source": "publisher_page"
+    },
+    {
+      "timestamp": "2026-10-29T15:12:15.503497+00:00",
+      "app_count": 6,
+      "discovery_source": "publisher_page"
     }
   ],
   "changes": []
