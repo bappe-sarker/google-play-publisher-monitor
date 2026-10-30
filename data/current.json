@@ -1,9 +1,9 @@
 {
-  "last_scan": "2026-10-30T08:25:38.885652+00:00",
+  "last_scan": "2026-10-30T15:02:32.714260+00:00",
   "discovery": {
     "publisher_count": 6,
     "search_verified_count": 0,
-    "html_search_candidate_count": 63,
+    "html_search_candidate_count": 66,
     "publisher_error": null,
     "search_errors": [
       "Search 'City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
@@ -26,7 +26,7 @@
       "play_store_url": "https://play.google.com/store/apps/details?id=com.scf.city&hl=en&gl=bd",
       "discovery_source": "publisher_page",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-30T08:25:38.885652+00:00",
+      "last_seen": "2026-10-30T15:02:32.714260+00:00",
       "status": "active",
       "missing_scans": 0
     },
@@ -39,7 +39,7 @@
       "play_store_url": "https://play.google.com/store/apps/details?id=com.csicitycustodian.city_custodian&hl=en&gl=bd",
       "discovery_source": "publisher_page",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-30T08:25:38.885652+00:00",
+      "last_seen": "2026-10-30T15:02:32.714260+00:00",
       "status": "active",
       "missing_scans": 0
     },
@@ -52,7 +52,7 @@
       "play_store_url": "https://play.google.com/store/apps/details?id=com.citybankplc.city_point&hl=en&gl=bd",
       "discovery_source": "google_play_search_verified",
       "first_seen": "2026-10-30T08:25:38.885652+00:00",
-      "last_seen": "2026-10-30T08:25:38.885652+00:00",
+      "last_seen": "2026-10-30T15:02:32.714260+00:00",
       "status": "active",
       "missing_scans": 0
     },
@@ -65,7 +65,7 @@
       "play_store_url": "https://play.google.com/store/apps/details?id=com.citybank.citysuperapp&hl=en&gl=bd",
       "discovery_source": "publisher_page",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-30T08:25:38.885652+00:00",
+      "last_seen": "2026-10-30T15:02:32.714260+00:00",
       "status": "active",
       "missing_scans": 0
     },
@@ -78,7 +78,7 @@
       "play_store_url": "https://play.google.com/store/apps/details?id=com.thecitybank.citylive&hl=en&gl=bd",
       "discovery_source": "publisher_page",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-30T08:25:38.885652+00:00",
+      "last_seen": "2026-10-30T15:02:32.714260+00:00",
       "status": "active",
       "missing_scans": 0
     },
@@ -91,7 +91,7 @@
       "play_store_url": "https://play.google.com/store/apps/details?id=com.cbl.remittance&hl=en&gl=bd",
       "discovery_source": "publisher_page",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-30T08:25:38.885652+00:00",
+      "last_seen": "2026-10-30T15:02:32.714260+00:00",
       "status": "active",
       "missing_scans": 0
     },
@@ -104,7 +104,7 @@
       "play_store_url": "https://play.google.com/store/apps/details?id=com.thecitybank.citytouch&hl=en&gl=bd",
       "discovery_source": "publisher_page",
       "first_seen": "2026-10-26T15:31:03.465920+00:00",
-      "last_seen": "2026-10-30T08:25:38.885652+00:00",
+      "last_seen": "2026-10-30T15:02:32.714260+00:00",
       "status": "active",
       "missing_scans": 0
     }
