@@ -79,7 +79,75 @@
       "timestamp": "2026-10-30T08:22:01.073977+00:00",
       "app_count": 6,
       "discovery_source": "publisher_page"
+    },
+    {
+      "timestamp": "2026-10-30T08:25:38.885652+00:00",
+      "app_count": 7,
+      "inventory_count": 7,
+      "publisher_count": 6,
+      "search_verified_count": 0,
+      "html_search_candidate_count": 63,
+      "rejected_candidate_count": 56,
+      "discovery": {
+        "publisher_count": 6,
+        "search_verified_count": 0,
+        "html_search_candidate_count": 63,
+        "publisher_error": null,
+        "search_errors": [
+          "Search 'City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'The City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank' (us) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'The City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'"
+        ]
+      }
     }
   ],
-  "changes": []
+  "changes": [
+    {
+      "change_type": "version_change",
+      "package_id": "com.cbl.remittance",
+      "name": "CityRemit",
+      "old_version": "Varies with device",
+      "new_version": "2.9.10",
+      "detected_at": "2026-10-30T08:25:38.885652+00:00",
+      "play_store_url": "https://play.google.com/store/apps/details?id=com.cbl.remittance&hl=en&gl=bd"
+    },
+    {
+      "change_type": "version_change",
+      "package_id": "com.citybank.citysuperapp",
+      "name": "CityConnect",
+      "old_version": "Varies with device",
+      "new_version": "1.0.8",
+      "detected_at": "2026-10-30T08:25:38.885652+00:00",
+      "play_store_url": "https://play.google.com/store/apps/details?id=com.citybank.citysuperapp&hl=en&gl=bd"
+    },
+    {
+      "change_type": "new_app",
+      "package_id": "com.citybankplc.city_point",
+      "name": "City Point",
+      "new_version": "Varies with device",
+      "detected_at": "2026-10-30T08:25:38.885652+00:00",
+      "play_store_url": "https://play.google.com/store/apps/details?id=com.citybankplc.city_point&hl=en&gl=bd"
+    },
+    {
+      "change_type": "version_change",
+      "package_id": "com.csicitycustodian.city_custodian",
+      "name": "City Invest",
+      "old_version": "Varies with device",
+      "new_version": "1.0.6",
+      "detected_at": "2026-10-30T08:25:38.885652+00:00",
+      "play_store_url": "https://play.google.com/store/apps/details?id=com.csicitycustodian.city_custodian&hl=en&gl=bd"
+    },
+    {
+      "change_type": "version_change",
+      "package_id": "com.thecitybank.citylive",
+      "name": "CityCorp",
+      "old_version": "Varies with device",
+      "new_version": "1.1.1",
+      "detected_at": "2026-10-30T08:25:38.885652+00:00",
+      "play_store_url": "https://play.google.com/store/apps/details?id=com.thecitybank.citylive&hl=en&gl=bd"
+    }
+  ]
 }
