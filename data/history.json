@@ -148,6 +148,29 @@
           "Search 'The City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'"
         ]
       }
+    },
+    {
+      "timestamp": "2026-10-31T05:34:40.554169+00:00",
+      "app_count": 7,
+      "inventory_count": 7,
+      "publisher_count": 6,
+      "search_verified_count": 0,
+      "html_search_candidate_count": 67,
+      "rejected_candidate_count": 60,
+      "discovery": {
+        "publisher_count": 6,
+        "search_verified_count": 0,
+        "html_search_candidate_count": 67,
+        "publisher_error": null,
+        "search_errors": [
+          "Search 'City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'The City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank' (us) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'The City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'"
+        ]
+      }
     }
   ],
   "changes": [
@@ -194,6 +217,15 @@
       "new_version": "1.1.1",
       "detected_at": "2026-10-30T08:25:38.885652+00:00",
       "play_store_url": "https://play.google.com/store/apps/details?id=com.thecitybank.citylive&hl=en&gl=bd"
+    },
+    {
+      "change_type": "version_change",
+      "package_id": "com.cbl.remittance",
+      "name": "CityRemit",
+      "old_version": "2.9.10",
+      "new_version": "2.10.0",
+      "detected_at": "2026-10-31T05:34:40.554169+00:00",
+      "play_store_url": "https://play.google.com/store/apps/details?id=com.cbl.remittance&hl=en&gl=bd"
     }
   ]
 }
