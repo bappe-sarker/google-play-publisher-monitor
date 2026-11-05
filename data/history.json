@@ -539,6 +539,29 @@
           "Search 'The City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'"
         ]
       }
+    },
+    {
+      "timestamp": "2026-11-05T19:58:52.285218+00:00",
+      "app_count": 7,
+      "inventory_count": 7,
+      "publisher_count": 6,
+      "search_verified_count": 0,
+      "html_search_candidate_count": 65,
+      "rejected_candidate_count": 58,
+      "discovery": {
+        "publisher_count": 6,
+        "search_verified_count": 0,
+        "html_search_candidate_count": 65,
+        "publisher_error": null,
+        "search_errors": [
+          "Search 'City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'The City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank' (us) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'The City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'"
+        ]
+      }
     }
   ],
   "changes": [
@@ -603,6 +626,15 @@
       "new_version": "1.0.2",
       "detected_at": "2026-11-03T19:29:15.597404+00:00",
       "play_store_url": "https://play.google.com/store/apps/details?id=com.citybankplc.city_point&hl=en&gl=bd"
+    },
+    {
+      "change_type": "version_change",
+      "package_id": "com.thecitybank.citytouch",
+      "name": "Citytouch",
+      "old_version": "10.0.5",
+      "new_version": "10.0.6",
+      "detected_at": "2026-11-05T19:58:52.285218+00:00",
+      "play_store_url": "https://play.google.com/store/apps/details?id=com.thecitybank.citytouch&hl=en&gl=bd"
     }
   ]
 }
