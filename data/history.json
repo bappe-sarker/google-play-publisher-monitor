@@ -1068,6 +1068,29 @@
           "Search 'The City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'"
         ]
       }
+    },
+    {
+      "timestamp": "2026-11-13T12:09:15.859409+00:00",
+      "app_count": 7,
+      "inventory_count": 7,
+      "publisher_count": 6,
+      "search_verified_count": 0,
+      "html_search_candidate_count": 67,
+      "rejected_candidate_count": 60,
+      "discovery": {
+        "publisher_count": 6,
+        "search_verified_count": 0,
+        "html_search_candidate_count": 67,
+        "publisher_error": null,
+        "search_errors": [
+          "Search 'City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'The City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank' (us) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'The City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'"
+        ]
+      }
     }
   ],
   "changes": [
