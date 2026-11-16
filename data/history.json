@@ -1298,6 +1298,29 @@
           "Search 'The City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'"
         ]
       }
+    },
+    {
+      "timestamp": "2026-11-16T18:28:49.941671+00:00",
+      "app_count": 7,
+      "inventory_count": 7,
+      "publisher_count": 6,
+      "search_verified_count": 0,
+      "html_search_candidate_count": 50,
+      "rejected_candidate_count": 43,
+      "discovery": {
+        "publisher_count": 6,
+        "search_verified_count": 0,
+        "html_search_candidate_count": 50,
+        "publisher_error": null,
+        "search_errors": [
+          "Search 'City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'The City Bank PLC' (bd) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'City Bank' (us) failed: search() got an unexpected keyword argument 'n'",
+          "Search 'The City Bank PLC' (us) failed: search() got an unexpected keyword argument 'n'"
+        ]
+      }
     }
   ],
   "changes": [
@@ -1398,6 +1421,15 @@
       "new_version": "1.0.9",
       "detected_at": "2026-11-15T15:38:42.184068+00:00",
       "play_store_url": "https://play.google.com/store/apps/details?id=com.citybank.citysuperapp&hl=en&gl=bd"
+    },
+    {
+      "change_type": "version_change",
+      "package_id": "com.scf.city",
+      "name": "City DRF-SCF",
+      "old_version": "2.2.0",
+      "new_version": "2.2.6",
+      "detected_at": "2026-11-16T18:28:49.941671+00:00",
+      "play_store_url": "https://play.google.com/store/apps/details?id=com.scf.city&hl=en&gl=bd"
     }
   ]
 }
